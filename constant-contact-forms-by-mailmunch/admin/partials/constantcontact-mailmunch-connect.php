@@ -1,4 +1,5 @@
-<form action="<?php echo add_query_arg( array('step' => 'integrate') ); ?>" method="POST" id="constantcontact-access-token-form">
+<form action="<?php echo esc_url(add_query_arg( array('step' => 'integrate') )); ?>" method="POST" id="constantcontact-access-token-form">
+  <?php wp_nonce_field('constantcontact_mailmunch_form_action', 'constantcontact_mailmunch_form_nonce'); ?>
   <?php wp_nonce_field('constantcontact_mailmunch_form_action', 'constantcontact_mailmunch_form_nonce'); ?>
   <input type="hidden" name="access_token" value="" />
 </form>
@@ -17,7 +18,7 @@
         <thead>
           <tr>
             <th class="active">
-              <a href="<?php echo add_query_arg( array('step' => 'connect') ); ?>">Connect to Constant Contact</a>
+              <a href="<?php echo esc_url(add_query_arg( array('step' => 'connect') )); ?>">Connect to Constant Contact</a>
             </th>
             <th>Choose Constant Contact List</th>
             <th>Create Opt-In Form</th>
