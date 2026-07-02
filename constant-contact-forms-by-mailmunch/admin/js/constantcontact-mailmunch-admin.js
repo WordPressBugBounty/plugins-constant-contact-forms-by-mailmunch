@@ -133,7 +133,7 @@
         site_name: $(this).find('input[name=site_name]').val(),
         site_url: $(this).find('input[name=site_url]').val(),
         action: 'sign_up',
-        mailmunch_signup_nonce: nonces.sign_up
+        nonce: nonces.sign_up,
       };
 
       $.ajax({
@@ -168,7 +168,7 @@
         email: $(this).find('input[name=email]').val(),
         password: $(this).find('input[name=password]').val(),
         action: 'sign_in',
-        mailmunch_signin_nonce: nonces.sign_in // Add nonce for sign-in action
+        nonce: nonces.sign_in,
       };
 
       $.ajax({

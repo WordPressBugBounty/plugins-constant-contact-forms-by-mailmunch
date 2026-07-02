@@ -30,6 +30,7 @@
                 <?php if (!empty($lists)) { ?>
                 <p>Choose a list to save your subscribers in:</p>
                 <form action="<?php echo esc_url(add_query_arg( array('step' => 'final') )); ?>" method="POST">
+                  <?php wp_nonce_field( 'mailmunch_choose_list', 'mailmunch_choose_list_nonce' ); ?>
                   <select name="list_id">
                 <?php foreach ($lists as $list) { ?>
                     <option value="<?php echo $list['id']; ?>"><?php echo $list['name']; ?></option>

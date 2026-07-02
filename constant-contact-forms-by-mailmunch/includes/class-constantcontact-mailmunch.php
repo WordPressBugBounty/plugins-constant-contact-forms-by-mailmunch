@@ -23,7 +23,7 @@ define( 'CONSTANTCONTACT_MAILMUNCH_SLUG', "constantcontact-mailmunch" );
 define( 'CONSTANTCONTACT_MAILMUNCH_PREFIX', 'cc_mm' );
 define( 'CONSTANTCONTACT_MAILMUNCH_POST_TYPE', 'mailmunch_page' );
 define( 'CONSTANTCONTACT_MAILMUNCH_PLUGIN_DIRECTORY', 'constant-contact-forms-by-mailmunch' );
-define( 'CONSTANTCONTACT_MAILMUNCH_VERSION', '2.1.6' );
+define( 'CONSTANTCONTACT_MAILMUNCH_VERSION', '2.1.7' );
 
 /**
  * The core plugin class.

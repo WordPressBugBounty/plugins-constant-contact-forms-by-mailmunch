@@ -2,8 +2,8 @@
 Contributors: mailmunch, lizgannes
 Tags: constant contact, signup forms, newsletter, subscribe, email marketing
 Requires at least: 3.0.1
-Tested up to: 6.9
-Stable tag: 2.1.6
+Tested up to: 7.0
+Stable tag: 2.1.7
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,10 @@ Why people use Constant Contact
 7. Another Constant Contact connected example from a user site
 
 == Changelog ==
+
+= 2.1.7 - Jul 1, 2026 =
+* Security: Require manage_options capability and nonce verification for sign_in and sign_up AJAX actions (CVE-2026-7520)
+* Security: Harden list selection, settings, and review-notice dismiss handlers
 
 = Constant Contact Forms 2.0.5 =
 * Added new Constant Contact themes
