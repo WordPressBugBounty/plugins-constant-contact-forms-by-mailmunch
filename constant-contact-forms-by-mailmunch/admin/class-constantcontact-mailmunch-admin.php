@@ -365,7 +365,7 @@ class Constantcontact_Mailmunch_Admin {
 		$this->initiate_api();
 
 		if ( isset( $_POST['mailmunch_settings_nonce'] )
-			&& wp_verify_nonce( $_POST['mailmunch_settings_nonce'], 'mailmunch_settings_action' )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['mailmunch_settings_nonce'] ) ), 'mailmunch_settings_action' )
 			&& current_user_can( 'manage_options' ) ) {
 			if ( isset( $_POST['auto_embed'] ) ) {
 				$this->mailmunch_api->setSetting( 'auto_embed', sanitize_text_field( wp_unslash( $_POST['auto_embed'] ) ) );
@@ -435,6 +435,11 @@ class Constantcontact_Mailmunch_Admin {
 
 		switch ($this->getStep()) {
 			case 'sign_out':
+				if ( ! isset( $_REQUEST['_wpnonce'] )
+					|| ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ), 'mailmunch_sign_out' )
+					|| ! current_user_can( 'manage_options' ) ) {
+					wp_die( esc_html__( 'Permission denied.', 'constant-contact-forms-by-mailmunch' ), 403 );
+				}
 				$this->mailmunch_api->signOutUser();
 				require_once(plugin_dir_path(__FILE__) . 'partials/constantcontact-mailmunch-connect.php');
 			break;
@@ -446,7 +451,11 @@ class Constantcontact_Mailmunch_Admin {
 			case 'integrate':
 				$var = $this->mailmunch_api->getPrefix(). 'constantcontact_access_token';
 				if ( isset( $_POST['access_token'] ) ) {
-					if ( wp_verify_nonce( $_POST['constantcontact_mailmunch_form_nonce'], 'constantcontact_mailmunch_form_action' ) && current_user_can( 'manage_options' ) ) {
+					if (
+						isset( $_POST['constantcontact_mailmunch_form_nonce'] ) &&
+						wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['constantcontact_mailmunch_form_nonce'] ) ), 'constantcontact_mailmunch_form_action' ) &&
+						current_user_can( 'manage_options' )
+					) {
 						update_option( $var, sanitize_text_field( wp_unslash( $_POST['access_token'] ) ) );
 					}
 				} else if (!get_option($this->mailmunch_api->getPrefix(). 'constantcontact_access_token') || !current_user_can('manage_options')) {
@@ -461,10 +470,21 @@ class Constantcontact_Mailmunch_Admin {
 			break;
 
 			default:
-				if ( isset( $_POST['list_id'] )
-					&& isset( $_POST['mailmunch_choose_list_nonce'] )
-					&& wp_verify_nonce( $_POST['mailmunch_choose_list_nonce'], 'mailmunch_choose_list' )
-					&& current_user_can( 'manage_options' ) ) {
+				if (
+					isset( $_POST['list_id'] )
+					&& (
+						(
+							isset( $_POST['_wpnonce'] )
+							&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), 'mailmunch_list_id' )
+						)
+						||
+						(
+							isset( $_POST['mailmunch_choose_list_nonce'] )
+							&& wp_verify_nonce( $_POST['mailmunch_choose_list_nonce'], 'mailmunch_choose_list' )
+						)
+					)
+					&& current_user_can( 'manage_options' )
+				) {
 					$list_id = sanitize_text_field( wp_unslash( $_POST['list_id'] ) );
 					update_option( $this->mailmunch_api->getPrefix() . 'constantcontact_list_id', $list_id );
 					$accessToken = get_option( $this->mailmunch_api->getPrefix() . 'constantcontact_access_token' );
