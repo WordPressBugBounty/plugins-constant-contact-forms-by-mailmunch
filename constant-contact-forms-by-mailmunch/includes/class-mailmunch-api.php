@@ -37,6 +37,7 @@
     }
 
     function setUserToken($userToken) {
+      self::forgetLandingPageIds();
       return update_option($this->getPrefix(). 'user_token', $userToken );
     }
 
@@ -274,8 +275,7 @@
         return $request->get_error_message();
       }
 
-      $body = str_replace('{{TOKEN}}', $this->getUserToken(), $request['body']);
-      return $body;
+      return self::withoutToken($request['body']);
     }
     
     function getAutorespondersHtml($siteId=null) {
@@ -287,8 +287,135 @@
         return $request->get_error_message();
       }
 
-      $body = str_replace('{{TOKEN}}', $this->getUserToken(), $request['body']);
-      return $body;
+      return self::withoutToken($request['body']);
+    }
+
+    /**
+     * MM-3766: a wp-admin link that opens MailMunch at $nextPath for the admin clicking it.
+     * It carries no MailMunch token, only a WordPress nonce; the admin-post handler asks
+     * MailMunch for a one-use, 60-second sign-in link when it is clicked.
+     */
+    static function ssoAdminUrl($nextPath) {
+      $url = add_query_arg(array(
+        'action' => CONSTANTCONTACT_MAILMUNCH_PREFIX. '_sso',
+        'next_url' => rawurlencode($nextPath),
+      ), admin_url('admin-post.php'));
+      return wp_nonce_url($url, CONSTANTCONTACT_MAILMUNCH_PREFIX. '_sso');
+    }
+
+    /**
+     * MM-3766: the dashboard HTML from MailMunch has forms that post the user token to /sso.
+     * Point them at the nonce-protected admin-post handler instead, and never put the token in.
+     */
+    static function withoutToken($html) {
+      $html = preg_replace('#action="(?:https?:)?//[^"/]+/sso"#', 'action="'. esc_url(admin_url('admin-post.php')). '"', $html);
+      $fields = '<input type="hidden" name="action" value="'. esc_attr(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_sso'). '" />'
+        . '<input type="hidden" name="_wpnonce" value="'. esc_attr(wp_create_nonce(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_sso')). '" />';
+      $html = preg_replace('#<input type="hidden" name="token" value="\{\{TOKEN\}\}"\s*/?>#', $fields, $html);
+      // Whatever is left of the placeholder is blanked, so the token can never reach the page.
+      $html = str_replace('{{TOKEN}}', '', $html);
+      // Report links carry the GraphQL login token (utk); MailMunch adds a fresh one on redeem.
+      $html = preg_replace('#(&amp;|&)utk=[^"&]*#', '', $html);
+      $html = preg_replace('#\?utk=[^"&]*(&amp;|&)?#', '?', $html);
+      return $html;
+    }
+
+    /**
+     * MM-3766: asks MailMunch (server to server, with the plugin token) for a one-use sign-in link.
+     * Returns the URL, or WP_Error. Only URLs on the MailMunch host this plugin talks to are accepted.
+     */
+    function getSsoLink($nextPath, $source) {
+      $this->requestType = 'post';
+      $request = $this->ping('/wordpress/sso_link', array('next_url' => $nextPath, 'source' => $source));
+      if (is_wp_error($request) || wp_remote_retrieve_response_code($request) != 200) {
+        return new WP_Error('mailmunch_sso', 'Unable to open MailMunch. Please try again.');
+      }
+
+      $body = json_decode(wp_remote_retrieve_body($request));
+      if (empty($body) || empty($body->success) || empty($body->url) || !is_string($body->url)) {
+        return new WP_Error('mailmunch_sso', 'Unable to open MailMunch. Please try again.');
+      }
+
+      $parsed = wp_parse_url($body->url);
+      $allowedHosts = array_map('strtolower', array_filter(array(
+        wp_parse_url(CONSTANTCONTACT_MAILMUNCH_URL, PHP_URL_HOST),
+        wp_parse_url(CONSTANTCONTACT_MAILMUNCH_URL_SECURED, PHP_URL_HOST),
+      )));
+      $securedScheme = wp_parse_url(CONSTANTCONTACT_MAILMUNCH_URL_SECURED, PHP_URL_SCHEME);
+      $allowedSchemes = ($securedScheme === 'https') ? array('https') : array('https', 'http');
+      if (empty($parsed['host']) || empty($parsed['scheme'])
+          || !in_array(strtolower($parsed['host']), $allowedHosts, true)
+          || !in_array(strtolower($parsed['scheme']), $allowedSchemes, true)
+          || (isset($parsed['path']) && $parsed['path'] !== '/wordpress/sso_redeem')) {
+        return new WP_Error('mailmunch_sso', 'Unable to open MailMunch. Please try again.');
+      }
+
+      return $body->url;
+    }
+
+    /**
+     * MM-3766: may this landing page id be shown on this WordPress site? Only the connected MailMunch site's
+     * own pages. Pages saved before the fix may point at another account's page, so this runs at page view.
+     * The site's list is cached for an hour; a miss refreshes it at most every 5 minutes (so a page made a
+     * moment ago works). If MailMunch can't be asked, the page is shown as before rather than taken down.
+     * Uses no Api instance: the constructor would create a site or user on a visitor's request.
+     */
+    static function landingPageAllowed($landingPageId) {
+      $landingPageId = absint($landingPageId);
+      if (!$landingPageId) { return false; }
+      $siteId = absint(get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_site_id'));
+      $userToken = get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_user_token');
+      if (empty($siteId) || empty($userToken)) { return true; }
+
+      // The cached list belongs to one MailMunch site; after reconnecting to another site it no longer counts.
+      $cacheKey = CONSTANTCONTACT_MAILMUNCH_PREFIX. '_landing_page_ids';
+      $cached = get_transient($cacheKey);
+      $ids = (is_array($cached) && isset($cached['site_id'], $cached['ids']) && (int) $cached['site_id'] === $siteId) ? $cached['ids'] : null;
+      if (is_array($ids) && in_array($landingPageId, $ids, true)) { return true; }
+      if (is_array($ids) && (int) get_transient($cacheKey. '_checked') === $siteId) { return false; }
+      // MailMunch didn't answer a moment ago: don't make every visitor wait for it again.
+      if ((int) get_transient($cacheKey. '_unavailable') === $siteId) { return true; }
+
+      // Token in a header, not the address (MM-3733 stops accepting ?token= on this route later).
+      $url = CONSTANTCONTACT_MAILMUNCH_URL. '/sites/'. $siteId. '/landing_pages?version='. rawurlencode(CONSTANTCONTACT_MAILMUNCH_VERSION);
+      $response = wp_remote_get($url, array('headers' => array('Accept' => 'application/json', 'Authorization' => 'Bearer '. $userToken), 'timeout' => 5));
+      $pages = (is_wp_error($response) || wp_remote_retrieve_response_code($response) != 200) ? null : json_decode(wp_remote_retrieve_body($response));
+      if (!is_array($pages)) {
+        set_transient($cacheKey. '_unavailable', $siteId, MINUTE_IN_SECONDS);
+        return true;
+      }
+      $ids = array();
+      foreach ($pages as $page) { if (isset($page->id)) { $ids[] = (int) $page->id; } }
+      self::rememberLandingPageIds($ids);
+      return in_array($landingPageId, $ids, true);
+    }
+
+    static function rememberLandingPageIds($ids) {
+      $siteId = absint(get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_site_id'));
+      set_transient(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_landing_page_ids', array('site_id' => $siteId, 'ids' => array_values(array_map('intval', $ids))), HOUR_IN_SECONDS);
+      set_transient(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_landing_page_ids_checked', $siteId, 5 * MINUTE_IN_SECONDS);
+      delete_transient(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_landing_page_ids_unavailable');
+    }
+
+    static function forgetLandingPageIds() {
+      foreach (array('', '_checked', '_unavailable') as $suffix) { delete_transient(CONSTANTCONTACT_MAILMUNCH_PREFIX. '_landing_page_ids'. $suffix); }
+    }
+
+    /**
+     * MM-3766: ids of the landing pages that belong to the connected MailMunch site,
+     * or WP_Error when MailMunch can't be asked.
+     */
+    function getLandingPageIds($siteId=null) {
+      $pages = $this->getLandingPages($siteId);
+      if (is_wp_error($pages) || !is_array($pages)) {
+        return new WP_Error('mailmunch_landing_pages', 'Unable to check landing pages. Please try again later.');
+      }
+      $ids = array();
+      foreach ($pages as $page) {
+        if (isset($page->id)) { $ids[] = (int) $page->id; }
+      }
+      self::rememberLandingPageIds($ids);
+      return $ids;
     }
 
     function getSiteId() {
@@ -296,6 +423,7 @@
     }
 
     function setSiteId($siteId) {
+      self::forgetLandingPageIds();
       return update_option($this->getPrefix(). 'site_id', $siteId);
     }
 
@@ -389,6 +517,7 @@
 
     function signOutUser() {
       delete_option($this->getPrefix(). 'user_token');
+      self::forgetLandingPageIds();
       delete_option($this->getPrefix(). 'site_id');
       delete_option($this->getPrefix(). 'constantcontact_access_token');
       delete_option($this->getPrefix(). 'constantcontact_list_id');

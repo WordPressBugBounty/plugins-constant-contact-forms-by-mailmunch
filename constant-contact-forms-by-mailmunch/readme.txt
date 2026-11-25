@@ -3,7 +3,7 @@ Contributors: mailmunch, lizgannes
 Tags: constant contact, signup forms, newsletter, subscribe, email marketing
 Requires at least: 3.0.1
 Tested up to: 7.0
-Stable tag: 2.1.9
+Stable tag: 2.1.10
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,10 @@ Why people use Constant Contact
 7. Another Constant Contact connected example from a user site
 
 == Changelog ==
+
+= 2.1.10 - Nov 22, 2026 =
+* Security: Landing Pages are for administrators only, and wp-admin pages no longer contain the MailMunch login token; links into MailMunch now use a one-use sign-in link
+* Security: a landing page can only be set to one of the connected MailMunch site's own pages
 
 = 2.1.8 - Oct 12, 2026 =
 * Fixed security vulnerabilities and known issues

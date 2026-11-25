@@ -28,7 +28,7 @@
             <td colspan="3" class="inside-container">
               <img id="loader" src="<?php echo plugins_url( 'img/loader.gif', dirname(__FILE__) ) ?>" />
 
-              <a id="connect-constantcontact" href="<?php echo CONSTANTCONTACT_MAILMUNCH_HOME_URL ?>/wordpress/integrations/constantcontact/new?token=<?php echo $this->mailmunch_api->getUserToken(); ?>">
+              <a id="connect-constantcontact" href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'action', CONSTANTCONTACT_MAILMUNCH_PREFIX . '_connect', admin_url( 'admin-post.php' ) ), CONSTANTCONTACT_MAILMUNCH_PREFIX . '_connect' ) ); ?>">
                 <img src="<?php echo plugins_url( 'img/constantcontact_logo.png', dirname(__FILE__) ) ?>" />
                 <span class="button button-primary">Connect to Constant Contact</span>
               </a>

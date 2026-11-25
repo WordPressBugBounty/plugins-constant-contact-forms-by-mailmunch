@@ -1,5 +1,14 @@
 <?php
 $landing_page_id = get_post_meta( get_the_ID(), '_mailmunch_landing_page_id', true );
+// MM-3766: only a page of the connected MailMunch site is shown (an Author could set any id before this fix).
+if ( ! ConstantContact_Mailmunch_Api::landingPageAllowed( $landing_page_id ) ) {
+  status_header( 404 );
+  nocache_headers();
+  header( 'X-MailMunch-Landing-Page: not-this-site' );
+  include( get_query_template( '404' ) );
+  die();
+}
+$landing_page_id = absint( $landing_page_id );
 $response = wp_remote_get(CONSTANTCONTACT_MAILMUNCH_PAGE_SERVICE_URL. '/'. $landing_page_id, array(
   'headers' => array(
     'X-MailMunch-JSON' => 1

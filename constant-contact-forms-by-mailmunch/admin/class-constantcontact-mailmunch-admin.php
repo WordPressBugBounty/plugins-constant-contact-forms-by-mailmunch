@@ -349,6 +349,51 @@ class Constantcontact_Mailmunch_Admin {
 	}
 	
 
+	/**
+	 * MM-3766: opens MailMunch for an admin without the MailMunch token ever being in a page.
+	 * Hooked to admin_post_<prefix>_sso; links come from ConstantContact_Mailmunch_Api::ssoAdminUrl() and the
+	 * dashboard forms rewritten by ConstantContact_Mailmunch_Api::withoutToken().
+	 */
+	public function sso_redirect() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Sorry, you are not allowed to do that.' ), 403 );
+		}
+		check_admin_referer( CONSTANTCONTACT_MAILMUNCH_PREFIX . '_sso' );
+
+		$next_url = isset( $_REQUEST['next_url'] ) ? (string) wp_unslash( $_REQUEST['next_url'] ) : '';
+		$is_path  = '' !== $next_url && '/' === $next_url[0] && 0 !== strpos( $next_url, '//' ) && false === strpos( $next_url, '\\' );
+		$is_https = 0 === strpos( $next_url, 'https://' );
+		if ( ! $is_path && ! $is_https ) {
+			wp_die( esc_html__( 'That link is not valid.' ), 400 );
+		}
+		$source = isset( $_REQUEST['source'] ) ? sanitize_key( wp_unslash( $_REQUEST['source'] ) ) : 'constantcontact';
+
+		$this->initiate_api();
+		$url = $this->mailmunch_api->getSsoLink( $next_url, $source ? $source : 'constantcontact' );
+		if ( is_wp_error( $url ) ) {
+			wp_die( esc_html( $url->get_error_message() ), 502 );
+		}
+
+		nocache_headers();
+		wp_redirect( $url ); // MailMunch's own host, checked in getSsoLink().
+		exit;
+	}
+
+	/**
+	 * MM-3766: the Connect button used to carry the MailMunch token in the page. It now points here; this
+	 * forwards the pop-up to the same MailMunch address as before, so the sign-in flow is unchanged.
+	 */
+	public function connect_redirect() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Sorry, you are not allowed to do that.' ), 403 );
+		}
+		check_admin_referer( CONSTANTCONTACT_MAILMUNCH_PREFIX . '_connect' );
+		$this->initiate_api();
+		nocache_headers();
+		wp_redirect( CONSTANTCONTACT_MAILMUNCH_HOME_URL . '/wordpress/integrations/constantcontact/new?token=' . rawurlencode( $this->mailmunch_api->getUserToken() ) );
+		exit;
+	}
+
 	public function initiate_api() {
 		if (empty($this->mailmunch_api)) {
 			$this->mailmunch_api = new ConstantContact_Mailmunch_Api();

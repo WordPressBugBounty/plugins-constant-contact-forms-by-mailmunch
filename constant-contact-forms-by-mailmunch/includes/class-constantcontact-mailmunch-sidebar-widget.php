@@ -90,11 +90,11 @@ class Constantcontact_Mailmunch_Sidebar_Widget extends WP_Widget {
       </select>
     </p>
 
-    <p><a href="<?php echo CONSTANTCONTACT_MAILMUNCH_URL_SECURED ?>/sso?token=<?php echo get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX."_user_token") ?>&next_url=<?php echo urlencode("/sites/".get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX."_site_id")."/widgets/new?wp_layout=1&widget_type=Sidebar") ?>" target="_blank">Create New Sidebar Form</a></p>
+    <p><?php if (current_user_can('manage_options')) { ?><a href="<?php echo esc_url(ConstantContact_Mailmunch_Api::ssoAdminUrl("/sites/".get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX."_site_id")."/widgets/new?wp_layout=1&widget_type=Sidebar")) ?>" target="_blank">Create New Sidebar Form</a><?php } ?></p>
     <?php 
     } else {
     ?>
-    <p>No sidebar forms found. <a href="<?php echo CONSTANTCONTACT_MAILMUNCH_URL_SECURED ?>/sso?token=<?php echo get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX."_user_token") ?>&next_url=<?php echo urlencode("/sites/".get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX."_site_id")."/widgets/new?wp_layout=1&widget_type=Sidebar") ?>" target="_blank">Create Your First One</a></p>
+    <p>No sidebar forms found. <?php if (current_user_can('manage_options')) { ?><a href="<?php echo esc_url(ConstantContact_Mailmunch_Api::ssoAdminUrl("/sites/".get_option(CONSTANTCONTACT_MAILMUNCH_PREFIX."_site_id")."/widgets/new?wp_layout=1&widget_type=Sidebar")) ?>" target="_blank">Create Your First One</a><?php } ?></p>
     <?php
     }
 
